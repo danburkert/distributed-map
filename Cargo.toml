@@ -1,0 +1,8 @@
+[package]
+
+name = "distributed-map"
+version = "0.0.1"
+authors = ["Dan Burkert <dan@danburkert.com>"]
+
+[dependencies.capnp]
+git = "https://github.com/dwrensha/capnproto-rust"

@@ -1,0 +1,12 @@
+[root]
+name = "distributed-map"
+version = "0.0.1"
+dependencies = [
+ "capnp 0.1.0 (git+https://github.com/dwrensha/capnproto-rust#d2dfbde10ce870ab954ce8557cc69cfbbb7f3ecb)",
+]
+
+[[package]]
+name = "capnp"
+version = "0.1.0"
+source = "git+https://github.com/dwrensha/capnproto-rust#d2dfbde10ce870ab954ce8557cc69cfbbb7f3ecb"
+
