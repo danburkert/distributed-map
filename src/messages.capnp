@@ -12,6 +12,7 @@ struct Request {
 
 struct Response {
   key @0 :Text;
+
   union {
     contains @1 :Bool;
     get :union {

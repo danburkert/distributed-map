@@ -1,5 +1,6 @@
+#![allow(unstable)]
+
 extern crate capnp;
-extern crate debug;
 
 use std::collections::HashMap;
 use std::io;
@@ -11,14 +12,17 @@ use std::os;
 use capnp::serialize_packed;
 use capnp::{MessageBuilder, MessageReader, ReaderOptions, MallocMessageBuilder};
 
-use messages_capnp::Request;
-use messages_capnp::Response;
+use messages_capnp::request;
+use messages_capnp::response;
 
-mod messages_capnp;
+pub mod messages_capnp {
+  include!(concat!(env!("OUT_DIR"), "/messages_capnp.rs"));
+}
 
-static address: &'static str = "127.0.0.1";
-static port: u16 = 4242;
+const ADDRESS: &'static str = "127.0.0.1";
+const PORT: u16 = 4242;
 
+/// Main method.
 fn main() {
     let args = std::os::args();
     let ref bin = args[0];
@@ -38,7 +42,7 @@ fn main() {
     match std::os::args()[1].as_slice() {
         "client" => client().unwrap(),
         "server" => server().unwrap(),
-        e => fail!("Unknown argument '{}'.", e)
+        e => panic!("Unknown argument '{}'.", e)
     }
 }
 
@@ -62,7 +66,7 @@ fn client() -> io::IoResult<()> {
     let key = args[3].as_slice();
     let mut message = MallocMessageBuilder::new_default();
     {
-        let request = message.init_root::<Request::Builder>();
+        let mut request = message.init_root::<request::Builder>();
         request.set_key(key);
         let op = args[2].as_slice();
         match op {
@@ -90,28 +94,28 @@ fn client() -> io::IoResult<()> {
         }
     }
 
-    let mut stream = TcpStream::connect(address, port);
+    let mut stream = TcpStream::connect((ADDRESS, PORT));
 
     try!(serialize_packed::write_packed_message_unbuffered(&mut stream, &mut message));
 
     let message_reader = try!(serialize_packed::new_reader_unbuffered(&mut stream, ReaderOptions::new()));
-    let response = message_reader.get_root::<Response::Reader>();
+    let response = message_reader.get_root::<response::Reader>();
     let response_key = response.get_key();
     match response.which() {
-        Some(Response::Contains(contains)) =>
+        Some(response::Contains(contains)) =>
             println!("contains {}: {}", response_key, contains),
-        Some(Response::Get(get)) => {
+        Some(response::Get(get)) => {
             let value = match get.which() {
-                Some(Response::Get::Value(value)) => Some(value),
-                Some(Response::Get::Empty(())) => None,
-                None => fail!("No value!")
+                Some(response::get::Value(value)) => Some(value),
+                Some(response::get::Empty(())) => None,
+                None => panic!("No value!")
             };
-            println!("get {}: {}", response_key, value);
+            println!("get {}: {:?}", response_key, value);
         }
-        Some(Response::Put(new_key)) => {
+        Some(response::Put(new_key)) => {
             println!("new key {}: {}", response_key, new_key);
         }
-        None => fail!("No response!")
+        None => panic!("No response!")
     }
     Ok(())
 }
@@ -119,7 +123,7 @@ fn client() -> io::IoResult<()> {
 fn server() -> io::IoResult<()> {
     let mut map = HashMap::<String, String>::new();
 
-    let listener = TcpListener::bind(address, port).unwrap();
+    let listener = TcpListener::bind((ADDRESS, PORT)).unwrap();
 
     // bind the listener to the specified address
     let mut acceptor = listener.listen();
@@ -127,20 +131,20 @@ fn server() -> io::IoResult<()> {
     for stream in acceptor.incoming() {
         let mut s = stream.unwrap();
         let message_reader = try!(serialize_packed::new_reader_unbuffered(&mut s, ReaderOptions::new()));
-        let request = message_reader.get_root::<Request::Reader>();
+        let request = message_reader.get_root::<request::Reader>();
         let key = request.get_key();
 
         let mut message = MallocMessageBuilder::new_default();
         {
-            let response = message.init_root::<Response::Builder>();
+            let mut response = message.init_root::<response::Builder>();
             response.set_key(key);
 
             match request.get_operation().which() {
-                Some(Request::Operation::Contains(())) => {
+                Some(request::operation::Contains(())) => {
                     response.set_contains(map.contains_key(&key.to_string()));
                 }
-                Some(Request::Operation::Get(())) => {
-                    match map.find(&key.to_string()) {
+                Some(request::operation::Get(())) => {
+                    match map.get(key) {
                         Some(value) => {
                             response.init_get().set_value(value.as_slice());
                         }
@@ -149,10 +153,10 @@ fn server() -> io::IoResult<()> {
                         }
                     }
                 }
-                Some(Request::Operation::Put(value)) => {
-                    response.set_put(map.insert(key.to_string(), value.to_string()));
+                Some(request::operation::Put(value)) => {
+                    response.set_put(map.insert(key.to_string(), value.to_string()).is_none());
                 }
-                None => fail!("No request!")
+                None => panic!("No request!")
             }
         }
 
